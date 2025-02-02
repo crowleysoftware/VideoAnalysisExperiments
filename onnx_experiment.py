@@ -14,20 +14,34 @@ def preprocess(image_path):
     input_tensor = np.expand_dims(image_transposed, axis=0).astype(np.float32)
     return input_tensor
 
-input_tensor = preprocess("C:/Users/Administrator/OneDrive - Newup/Pictures/Screenshots/top.png")
-
-inputs = {session.get_inputs()[0].name: input_tensor}
-outputs = session.run(None, inputs)
-
 def postprocess(outputs, image):
+    
+    # Print the structure of outputs
+    print(f"Outputs: {outputs}")
+    print(f"Number of items in outputs: {len(outputs)}")
+
+    # Assuming outputs is a list of arrays, print the shape of each array
+    for i, output in enumerate(outputs):
+        print(f"Shape of output[{i}]: {output.shape}")
+    
+    return image    
+"""    
     boxes, scores, class_ids = outputs[0], outputs[1], outputs[2]
+    
     for box, score, class_id in zip(boxes, scores, class_ids):
         if score > 0.5:  # Confidence threshold
             x1, y1, x2, y2 = map(int, box)
             cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
             label = f'Class {class_id}: {score:.2f}'
             cv2.putText(image, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-    return image
+"""            
+
+
+
+input_tensor = preprocess("C:/Users/Administrator/OneDrive - Newup/Pictures/Screenshots/top.png")
+
+inputs = {session.get_inputs()[0].name: input_tensor}
+outputs = session.run(None, inputs)
 
 image = cv2.imread('input_image.jpg')
 result_image = postprocess(outputs, image)
