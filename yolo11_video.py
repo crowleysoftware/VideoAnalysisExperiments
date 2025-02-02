@@ -12,6 +12,28 @@ from webcolors import (
     hex_to_rgb,
 )
 
+class DetectionResult:
+    def __init__(self, cls, confidence, result_number, color, aspect_ratio, class_name):
+        self.cls = cls
+        self.confidence = confidence
+        self.result_number = result_number
+        self.color = color
+        self.aspect_ratio = aspect_ratio
+        self.class_name = class_name
+
+    def __repr__(self):
+        return f"DetectionResult(class={self.cls}, confidence={self.confidence}, result_number={self.result_number}, color={self.color}, class_name={self.class_name})"
+
+    def to_dict(self):
+        return {
+            "class": self.cls,
+            "class_name": self.class_name,
+            "confidence": self.confidence,
+            "result_number": self.result_number,
+            "color": self.color,
+            "aspect_ratio": self.aspect_ratio
+        }
+        
 def convert_rgb_to_names(rgb_tuple):
     
     # a dictionary of all the hex and their respective names in css3
@@ -110,7 +132,7 @@ logging.basicConfig(filename='detection_log.txt', level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load video
-video_path = "C:/Users/Administrator/OneDrive - Newup (1)/Recordings/PXL_20250201_171030199.mp4"
+video_path = "C:/Users/Administrator/OneDrive - Newup (1)/Recordings/PXL_20250202_200826524.mp4"
 cap = cv2.VideoCapture(video_path)
 
 # Get video writer initialized to save the output video
@@ -120,6 +142,9 @@ out = cv2.VideoWriter('output_video.mp4', fourcc, 20.0, (int(cap.get(3)), int(ca
 frame_count = 0
 skip_frames = 4
 result_nbr = 0
+
+# List to collect detection results
+detection_results = []
 
 while cap.isOpened():
     ret, frame = cap.read()
@@ -156,35 +181,32 @@ while cap.isOpened():
             
             width = x2 - x1
             height = y2 - y1
-            aspect_ratio = width / height
+            aspect_ratio = round(width / height, 1)
             #log aspect ratio
             logging.info(f'Frame {frame_count}: Aspect Ratio {aspect_ratio}')
             if not (0.8 <= aspect_ratio <= 1.2):  # Adjust the tolerance as needed
                 save_crop = False
                 continue
 
-            if name == 'frisbee' or name == 'clock':        
-                
-                if confidence < 0.5:
-                    save_crop = False
-                    continue
-                
-                save_crop = True
-               
-                # Extract the ROI using the bounding box coordinates
-                roi = frame[y1:y2, x1:x2]
-                
-                # Get the predominant color in the ROI
-                predominant_color = get_predominant_color(roi)
-                #color_name = get_color_name(predominant_color)
-                predominant_color_tuple = tuple(map(int, predominant_color))
-                mycolor = convert_rgb_to_names(predominant_color_tuple)
-                actual_name, color_name = get_color_name(predominant_color_tuple)
-                logging.info(f'Frame {frame_count}, RGB {predominant_color}, Color {mycolor}, Actual Color {actual_name}')
-            else:
+            if confidence < 0.5:
                 save_crop = False
-        
+                continue
+                
+            save_crop = True
+            
+            # Extract the ROI using the bounding box coordinates
+            roi = frame[y1:y2, x1:x2]
+            
+            # Get the predominant color in the ROI
+            predominant_color = get_predominant_color(roi)
+            #color_name = get_color_name(predominant_color)
+            predominant_color_tuple = tuple(map(int, predominant_color))
+            mycolor = convert_rgb_to_names(predominant_color_tuple)
+            actual_name, color_name = get_color_name(predominant_color_tuple)
+            logging.info(f'Frame {frame_count}, RGB {predominant_color}, Color {mycolor}, Actual Color {actual_name}')
+                    
         if save_crop:
+            detection_results.append(DetectionResult(cls, confidence, result_nbr, mycolor, aspect_ratio, name))
             result.save_crop("C:/repos/yolo_experiment/frames", f"frame_{result_nbr}.jpg")
 
     frame_count += 1
@@ -192,3 +214,10 @@ while cap.isOpened():
 cap.release()
 out.release()
 cv2.destroyAllWindows()
+
+# Convert detection results to a list of dictionaries
+detection_results_dicts = [dr.to_dict() for dr in detection_results]
+
+# Serialize the list of dictionaries to JSON and write it to a file
+with open('detection_results.json', 'w') as json_file:
+    json.dump(detection_results_dicts, json_file, indent=4)

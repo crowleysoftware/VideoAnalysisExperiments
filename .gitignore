@@ -1,0 +1,6 @@
+frames/*
+runs/*
+*.mp4
+detection_log.txt
+detection_results.json
+*.pt
