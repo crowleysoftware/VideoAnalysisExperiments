@@ -118,14 +118,15 @@ fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 out = cv2.VideoWriter('output_video.mp4', fourcc, 20.0, (int(cap.get(3)), int(cap.get(4))))
 
 frame_count = 0
-skip_frames = 5
+skip_frames = 4
+result_nbr = 0
 
 while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
         break
 
-    if skip_frames < 5:
+    if skip_frames < 4:
         skip_frames += 1
         continue
     else:
@@ -134,7 +135,7 @@ while cap.isOpened():
     results = model(frame)
        
     for result in results:
-
+        result_nbr += 1
         json_str = result.to_json()
         logging.info(json_str)
         
@@ -184,20 +185,9 @@ while cap.isOpened():
                 save_crop = False
         
         if save_crop:
-            result.save_crop("C:/repos/yolo_experiment/frames")
-        
-    # Save frame with detection boxes (optional)
-    #cv2.imwrite(f'frames/frame_{frame_count:04d}.jpg', results.ims[0])
+            result.save_crop("C:/repos/yolo_experiment/frames", f"frame_{result_nbr}.jpg")
 
     frame_count += 1
-
-    # Write the frame with detection boxes
-    #out.write(results.ims[0])
-
-    # Display the frame (optional)
-    #cv2.imshow('YOLOv5 Detection', frame) #results.ims[0])
-    #if cv2.waitKey(1) & 0xFF == ord('q'):
-        #break
 
 cap.release()
 out.release()
