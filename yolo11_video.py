@@ -136,11 +136,11 @@ video_path = "C:/Users/Administrator/OneDrive - Newup (1)/Recordings/PXL_2025020
 cap = cv2.VideoCapture(video_path)
 
 # Get video writer initialized to save the output video
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-out = cv2.VideoWriter('output_video.mp4', fourcc, 20.0, (int(cap.get(3)), int(cap.get(4))))
+#fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
 frame_count = 0
-skip_frames = 4
+frames_to_skip = 0
+skipped_frames = 2
 result_nbr = 0
 
 # List to collect detection results
@@ -151,11 +151,11 @@ while cap.isOpened():
     if not ret:
         break
 
-    if skip_frames < 4:
-        skip_frames += 1
+    if skipped_frames < frames_to_skip:
+        skipped_frames += 1
         continue
     else:
-        skip_frames = 0
+        skipped_frames = 0
         
     results = model(frame)
        
@@ -164,16 +164,23 @@ while cap.isOpened():
         json_str = result.to_json()
         logging.info(json_str)
         
+        # result can contain a number of detections. If any are a person then don't save anything else
+        contains_person = any(item["name"] == "person" for result in results for item in json.loads(result.to_json()))
+        
         # Parse JSON string to a dictionary
         result_dict = json.loads(json_str)
         
         if result_dict == []:
             continue
         
-        save_crop = False
-        for item in result_dict:
+        # if result contains a person then save it then skip any other results
         
-            name = item["name"]
+        for item in result_dict:
+            
+            if contains_person and item["name"] == "person":
+                continue
+        
+            name = item["name"]                
             cls = item["class"]
             confidence = item["confidence"]
             box = item["box"]
@@ -182,41 +189,53 @@ while cap.isOpened():
             width = x2 - x1
             height = y2 - y1
             aspect_ratio = round(width / height, 1)
+            
             #log aspect ratio
             logging.info(f'Frame {frame_count}: Aspect Ratio {aspect_ratio}')
-            if not (0.8 <= aspect_ratio <= 1.2):  # Adjust the tolerance as needed
-                save_crop = False
+            
+            if not cls == "person" and not (0.8 <= aspect_ratio <= 1.2):  # Adjust the tolerance as needed
                 continue
 
             if confidence < 0.5:
-                save_crop = False
                 continue
-                
-            save_crop = True
             
             # Extract the ROI using the bounding box coordinates
             roi = frame[y1:y2, x1:x2]
             
             # Get the predominant color in the ROI
             predominant_color = get_predominant_color(roi)
-            #color_name = get_color_name(predominant_color)
             predominant_color_tuple = tuple(map(int, predominant_color))
             mycolor = convert_rgb_to_names(predominant_color_tuple)
-            actual_name, color_name = get_color_name(predominant_color_tuple)
-            logging.info(f'Frame {frame_count}, RGB {predominant_color}, Color {mycolor}, Actual Color {actual_name}')
-                    
-        if save_crop:
+
+            logging.info(f'Frame {frame_count}, RGB {predominant_color}, Color {mycolor}')
+
             detection_results.append(DetectionResult(cls, confidence, result_nbr, mycolor, aspect_ratio, name))
             result.save_crop("C:/repos/yolo_experiment/frames", f"frame_{result_nbr}.jpg")
 
     frame_count += 1
 
 cap.release()
-out.release()
 cv2.destroyAllWindows()
 
 # Convert detection results to a list of dictionaries
 detection_results_dicts = [dr.to_dict() for dr in detection_results]
+
+#todo: decide which results to save. Pair up top and bottom images
+#find the result that is half way between the first frame and the first frame that detected a person
+position = 0
+last_person_frame = 0
+
+for dr in detection_results:
+    if dr.class_name == "person":
+        person_frame = position
+        img_selection = last_person_frame +  ((position - last_person_frame) // 2)
+        logging.info(f"Person frame: {person_frame}, Last person frame: {last_person_frame}, Position: {position}, Image selection: {img_selection}, Frame: {detection_results[position].result_number}")
+        last_person_frame = position
+        
+        #now keep going until we find non person frame
+        
+            
+    position += 1
 
 # Serialize the list of dictionaries to JSON and write it to a file
 with open('detection_results.json', 'w') as json_file:
