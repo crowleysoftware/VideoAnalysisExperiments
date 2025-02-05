@@ -73,59 +73,14 @@ def get_predominant_color(image, k=1):
     
     return predominant_color
 
-# Define a list of common colors and their RGB values
-colors = {
-    "red": (255, 0, 0),
-    "green": (0, 255, 0),
-    "blue": (0, 0, 255),
-    "yellow": (255, 255, 0),
-    "cyan": (0, 255, 255),
-    "magenta": (255, 0, 255),
-    "black": (0, 0, 0),
-    "white": (255, 255, 255),
-    "gray": (128, 128, 128),
-    "orange": (255, 165, 0),
-    "purple": (128, 0, 128),
-    "pink": (255, 192, 203),
-    "brown": (165, 42, 42)
-}
-
-def get_color_namex(rgb_color):
-    # Convert the predefined colors and the input color to LAB color space
-    lab_colors = {name: cv2.cvtColor(np.uint8([[rgb]]), cv2.COLOR_RGB2LAB)[0][0] for name, rgb in colors.items()}
-    lab_color = cv2.cvtColor(np.uint8([[rgb_color]]), cv2.COLOR_RGB2LAB)[0][0]
-    
-    min_distance = float('inf')
-    color_name = None
-    for name, lab in lab_colors.items():
-        dist = distance.euclidean(lab_color, lab)
-        if dist < min_distance:
-            min_distance = dist
-            color_name = name
-    return color_name
-
-def closest_color(requested_color):
-    min_colors = {}
-    for key, name in webcolors._definitions._CSS21_HEX_TO_NAMES.items():
-        r_c, g_c, b_c = webcolors.hex_to_rgb(key)
-        rd = (r_c - requested_color[0]) ** 2
-        gd = (g_c - requested_color[1]) ** 2
-        bd = (b_c - requested_color[2]) ** 2
-        min_colors[(rd + gd + bd)] = name
-    return min_colors[min(min_colors.keys())]
-
-def get_color_name(rgb_color):
-    try:
-        closest_name = actual_name = webcolors.rgb_to_name(rgb_color)
-    except ValueError:
-        closest_name = closest_color(rgb_color)
-        actual_name = None
-    return actual_name, closest_name
+def get_the_color(convert_rgb_to_names, get_predominant_color, roi):
+    predominant_color = get_predominant_color(roi)
+    predominant_color_tuple = tuple(map(int, predominant_color))
+    mycolor = convert_rgb_to_names(predominant_color_tuple)
+    return predominant_color,mycolor
 
 # Build a YOLOv9c model from pretrained weight
 model = YOLO("yolo11n.pt")
-
-# Display model information (o
 
 # Configure logging
 logging.basicConfig(filename='detection_log.txt', level=logging.INFO,
@@ -135,12 +90,9 @@ logging.basicConfig(filename='detection_log.txt', level=logging.INFO,
 video_path = "C:/Users/Administrator/OneDrive - Newup (1)/Recordings/PXL_20250202_200826524.mp4"
 cap = cv2.VideoCapture(video_path)
 
-# Get video writer initialized to save the output video
-#fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-
 frame_count = 0
-frames_to_skip = 0
-skipped_frames = 2
+frames_to_skip = 5
+skipped_frames = 0
 result_nbr = 0
 
 # List to collect detection results
@@ -150,13 +102,14 @@ while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
         break
-
+    
     if skipped_frames < frames_to_skip:
         skipped_frames += 1
         continue
     else:
-        skipped_frames = 0
-        
+        skipped_frames = 0        
+    
+    # object detection happens here    
     results = model(frame)
        
     for result in results:
@@ -164,22 +117,13 @@ while cap.isOpened():
         json_str = result.to_json()
         logging.info(json_str)
         
-        # result can contain a number of detections. If any are a person then don't save anything else
-        contains_person = any(item["name"] == "person" for result in results for item in json.loads(result.to_json()))
-        
         # Parse JSON string to a dictionary
         result_dict = json.loads(json_str)
         
         if result_dict == []:
             continue
         
-        # if result contains a person then save it then skip any other results
-        
-        for item in result_dict:
-            
-            if contains_person and item["name"] == "person":
-                continue
-        
+        for item in result_dict:            
             name = item["name"]                
             cls = item["class"]
             confidence = item["confidence"]
@@ -193,7 +137,7 @@ while cap.isOpened():
             #log aspect ratio
             logging.info(f'Frame {frame_count}: Aspect Ratio {aspect_ratio}')
             
-            if not cls == "person" and not (0.8 <= aspect_ratio <= 1.2):  # Adjust the tolerance as needed
+            if not (0.8 <= aspect_ratio <= 1.2):  # Adjust the tolerance as needed
                 continue
 
             if confidence < 0.5:
@@ -203,13 +147,16 @@ while cap.isOpened():
             roi = frame[y1:y2, x1:x2]
             
             # Get the predominant color in the ROI
-            predominant_color = get_predominant_color(roi)
-            predominant_color_tuple = tuple(map(int, predominant_color))
-            mycolor = convert_rgb_to_names(predominant_color_tuple)
+            predominant_color, mycolor = get_the_color(convert_rgb_to_names, get_predominant_color, roi)
 
             logging.info(f'Frame {frame_count}, RGB {predominant_color}, Color {mycolor}')
 
-            detection_results.append(DetectionResult(cls, confidence, result_nbr, mycolor, aspect_ratio, name))
+            detection_results.append(DetectionResult(cls, confidence, result_nbr, mycolor, aspect_ratio, name))            
+
+        # Check if any item in result_dict has name equal to "person"
+        if any(item["name"] == "person" for item in result_dict):
+            logging.info(f"Skipping saving frame {frame_count} as it contains a person")
+        else:
             result.save_crop("C:/repos/yolo_experiment/frames", f"frame_{result_nbr}.jpg")
 
     frame_count += 1

@@ -4,3 +4,4 @@ runs/*
 detection_log.txt
 detection_results.json
 *.pt
+loadEnvVars.ps1
