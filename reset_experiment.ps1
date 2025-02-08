@@ -14,3 +14,4 @@ if (Test-Path -Path .\detection_sections.json) {
 
 # delete all folder and files in frames folder
 Remove-Item -Path .\frames\* -Recurse
+Remove-Item -Path .\full_frames\* -Recurse

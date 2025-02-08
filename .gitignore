@@ -1,10 +1,13 @@
 frames/*
+full_frames/*
 runs/*
 __pycache__/*
 .vscode/*
+.conda/*
 *.mp4
 detection_log.txt
 detection_results.json
 detection_sections.json
+video_detection_log.txt
 *.pt
 loadEnvVars.ps1

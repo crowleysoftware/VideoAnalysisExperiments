@@ -70,7 +70,7 @@ video_path = "C:/Users/Administrator/OneDrive - Newup (1)/Recordings/PXL_2025020
 cap = cv2.VideoCapture(video_path)
 
 frame_count = 0
-frames_to_skip = 2
+frames_to_skip = 0
 skipped_frames = 0
 result_nbr = 0
 
@@ -81,6 +81,9 @@ while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
         break
+    
+    # write full frame to disk
+    cv2.imwrite(f"C:/repos/yolo_experiment/full_frames/frame_{frame_count}.jpg", frame)
     
     if skipped_frames < frames_to_skip:
         skipped_frames += 1
@@ -109,7 +112,12 @@ while cap.isOpened():
             detection_results.append(DetectionResult("9999", 1.0, result_nbr, "transparent", 1.0, "multi", class_names)) 
             continue    
         
-        for item in result_dict:            
+        for item in result_dict: 
+            
+            if item["name"] in {"clock", "mouse", "sports ball"}:
+                item["name"] = "frisbee"
+                item["class"] = "29"
+                       
             name = item["name"]                
             cls = item["class"]
             confidence = item["confidence"]
@@ -150,7 +158,7 @@ while cap.isOpened():
 cap.release()
 
 # Define the allowed class names
-allowed_class_names = {"frisbee", "clock", "sports ball", "person", "multi"}
+allowed_class_names = {"frisbee", "clock", "sports ball", "person", "multi", "mouse"}
 
 # Update class names and filter detection results
 updated_detection_results = []
@@ -171,6 +179,10 @@ sections = []
 current_section = None
 
 for i, dr in enumerate(detection_results_dicts):
+    
+    if dr["class_name"] in {"clock", "mouse", "sports ball"}:
+        dr["class_name"] = "frisbee"
+        
     class_name = dr["class_name"]
     frame_number = dr["result_number"]
 
