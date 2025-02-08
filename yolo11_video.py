@@ -70,7 +70,7 @@ video_path = "C:/Users/Administrator/OneDrive - Newup (1)/Recordings/PXL_2025020
 cap = cv2.VideoCapture(video_path)
 
 frame_count = 0
-frames_to_skip = 5
+frames_to_skip = 2
 skipped_frames = 0
 result_nbr = 0
 
@@ -90,7 +90,7 @@ while cap.isOpened():
     
     # object detection happens here    
     results = model(frame)
-       
+    
     for result in results:
         result_nbr += 1
         json_str = result.to_json()
@@ -101,6 +101,13 @@ while cap.isOpened():
         
         if result_dict == []:
             continue
+        
+        has_multiple_objects = len(result_dict) > 1
+        if has_multiple_objects:
+            # concat the class names of multiple objects
+            class_names = [item["name"] for item in result_dict]
+            detection_results.append(DetectionResult("9999", 1.0, result_nbr, "transparent", 1.0, "multi", class_names)) 
+            continue    
         
         for item in result_dict:            
             name = item["name"]                
@@ -129,39 +136,94 @@ while cap.isOpened():
             predominant_color, mycolor = get_the_color(convert_rgb_to_names, get_predominant_color, roi)
 
             logging.info(f'Frame {frame_count}, RGB {predominant_color}, Color {mycolor}')
-
-            detection_results.append(DetectionResult(cls, confidence, result_nbr, mycolor, aspect_ratio, name))            
+                
+            detection_results.append(DetectionResult(cls, confidence, result_nbr, mycolor, aspect_ratio, name, name))            
 
         # Check if any item in result_dict has name equal to "person"
-        if any(item["name"] == "person" for item in result_dict):
-            logging.info(f"Skipping saving frame {frame_count} as it contains a person")
-        else:
-            result.save_crop("C:/repos/yolo_experiment/frames", f"frame_{result_nbr}.jpg")
+        # if any(item["name"] == "person" for item in result_dict):
+        #     logging.info(f"Skipping saving frame {frame_count} as it contains a person")
+        # else:
+        result.save_crop("C:/repos/yolo_experiment/frames", f"frame_{result_nbr}.jpg")
 
     frame_count += 1
 
 cap.release()
-cv2.destroyAllWindows()
+
+# Define the allowed class names
+allowed_class_names = {"frisbee", "clock", "sports ball", "person", "multi"}
+
+# Update class names and filter detection results
+updated_detection_results = []
+for dr in detection_results:
+    if dr.class_name in {"clock", "mouse", "sports ball"}:
+        dr.class_name = "frisbee"
+    if dr.class_name in allowed_class_names:
+        updated_detection_results.append(dr)
+
+# Replace the original detection_results with the updated list
+detection_results = updated_detection_results
 
 # Convert detection results to a list of dictionaries
 detection_results_dicts = [dr.to_dict() for dr in detection_results]
 
-#todo: decide which results to save. Pair up top and bottom images
-#find the result that is half way between the first frame and the first frame that detected a person
-position = 0
-last_person_frame = 0
+# Group detection results into sections based on class_name
+sections = []
+current_section = None
 
-for dr in detection_results:
-    if dr.class_name == "person":
-        person_frame = position
-        img_selection = last_person_frame +  ((position - last_person_frame) // 2)
-        logging.info(f"Person frame: {person_frame}, Last person frame: {last_person_frame}, Position: {position}, Image selection: {img_selection}, Frame: {detection_results[position].result_number}")
-        last_person_frame = position
-        
-        #now keep going until we find non person frame
-        
-            
-    position += 1
+for i, dr in enumerate(detection_results_dicts):
+    class_name = dr["class_name"]
+    frame_number = dr["result_number"]
+
+    if current_section is None:
+        # Start a new section
+        current_section = {
+            "class_name": class_name,
+            "start_frame": frame_number,
+            "end_frame": frame_number
+        }
+    elif current_section["class_name"] == class_name:
+        # Update the end frame of the current section
+        current_section["end_frame"] = frame_number
+    else:
+        # Add the completed section to the list
+        sections.append(current_section)
+        # Start a new section
+        current_section = {
+            "class_name": class_name,
+            "start_frame": frame_number,
+            "end_frame": frame_number
+        }
+
+# Add the last section to the list
+if current_section is not None:
+    sections.append(current_section)
+    
+# remove sections with less than 5 frames
+sections = [section for section in sections if section["end_frame"] - section["start_frame"] >= 5]
+
+# Merge sections when they are adjacent
+merged_sections = []
+current_section = None
+
+for section in sections:
+    if current_section is None:
+        current_section = section
+    elif current_section["class_name"] == section["class_name"]:
+        # Update the end frame of the current section
+        current_section["end_frame"] = section["end_frame"]
+    else:
+        # Add the completed section to the merged list
+        merged_sections.append(current_section)
+        # Start a new section
+        current_section = section
+
+# Add the last section to the merged list
+if current_section is not None:
+    merged_sections.append(current_section)
+
+# Serialize the sections to JSON and write it to a file
+with open('detection_sections.json', 'w') as json_file:
+    json.dump(merged_sections, json_file, indent=4)
 
 # Serialize the list of dictionaries to JSON and write it to a file
 with open('detection_results.json', 'w') as json_file:
