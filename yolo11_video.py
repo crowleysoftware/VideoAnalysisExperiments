@@ -59,22 +59,23 @@ def get_the_color(convert_rgb_to_names, get_predominant_color, roi):
     return predominant_color,mycolor
 
 # Build a YOLOv9c model from pretrained weight
-model = YOLO("yolo11n.pt")
+model = YOLO("best.pt")
 
 # Configure logging
 logging.basicConfig(filename='detection_log.txt', level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load video
-video_path = "C:/Users/Administrator/OneDrive - Newup (1)/Recordings/PXL_20250202_200826524.mp4"
+video_path = "C:/Users/Administrator/OneDrive - Newup (1)/Recordings/trainingdata.mp4"
 cap = cv2.VideoCapture(video_path)
 
 frame_count = 0
-frames_to_skip = 0
+frames_to_skip = 2
 skipped_frames = 0
 result_nbr = 0
 
 # List to collect detection results
+
 detection_results = []
 
 while cap.isOpened():
@@ -83,7 +84,7 @@ while cap.isOpened():
         break
     
     # write full frame to disk
-    cv2.imwrite(f"C:/repos/yolo_experiment/full_frames/frame_{frame_count}.jpg", frame)
+  #  cv2.imwrite(f"C:/repos/yolo_experiment/full_frames/frame_{frame_count}.jpg", frame)
     
     if skipped_frames < frames_to_skip:
         skipped_frames += 1

@@ -11,3 +11,6 @@ detection_sections.json
 video_detection_log.txt
 *.pt
 loadEnvVars.ps1
+training_frames/*
+chosen_frames/*
+chosen.txt
